@@ -244,7 +244,8 @@ test('WaveSpeed discovers authenticated media models and excludes text, training
   assert.equal(calls, 0);
   await gateway.configureProvider('wavespeed', { apiKey: 'wavespeed-discovery' });
   const result = await api.call('openmotion_media_use', { action: 'models', provider: 'wavespeed', refresh: true });
-  assert.deepEqual(result.catalogs[0].models.map((m: any) => m.modality), ['image', 'video', 'audio']);
+  assert.deepEqual(result.catalogs[0].models.filter((m: any) => m.source === 'live').map((m: any) => [m.modelId, m.modality]), [['vendor/image', 'image'], ['vendor/video', 'video'], ['vendor/voice', 'audio']]);
+  assert.deepEqual(result.catalogs[0].models.filter((m: any) => m.source === 'builtin').map((m: any) => m.modality), ['image', 'video', 'audio']);
   assert.equal(calls, 1); assert.doesNotMatch(JSON.stringify(result), /wavespeed-discovery/);
   await gateway.close();
 }));
