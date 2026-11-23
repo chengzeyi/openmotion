@@ -132,7 +132,10 @@ export class ModelGateway {
       const live = cloud.find(row => row.id === model.id), required = builtinDefaults.get(model.id);
       // A same-ID catalogue row replaces the built-in entry; keep the built-in defaults a request needs.
       const merged = { ...model, ...(required ? { defaults: { ...required, ...model.defaults } } : {}), ...overrides[model.id], ...(live ? { supportsImageReference: live.supportsImageReference, maxInputImages: live.maxInputImages, nativeOptions: live.nativeOptions } : {}) };
-      return { ...merged, generationOptions: generationOptions(merged) };
+      const normalized = ['opendesign', 'account'].includes(merged.provider) && merged.modality === 'image' && merged.supportsImageReference
+        ? { ...merged, maxInputImages: modelReferenceLimit(merged) }
+        : merged;
+      return { ...normalized, generationOptions: generationOptions(normalized) };
     });
   }
   async listModels(input: { provider?: unknown; modality?: unknown; query?: unknown; refresh?: unknown; offset?: unknown; limit?: unknown } = {}) {

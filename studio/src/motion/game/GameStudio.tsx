@@ -33,6 +33,9 @@ export function GameStudio({ onExplore, onOpenMcp }: { onExplore: () => void; on
   const [setting, setSetting] = useState<GameSetting | null>(null);
   const [multiplayer, setMultiplayer] = useState(false);
   const [orientation, setOrientation] = useState<'landscape' | 'portrait'>('landscape');
+  // Portrait games default to a playable ad; it is single-player, so it and Multiplayer switch each other off.
+  const [playableAd, setPlayableAd] = useState(true);
+  const adBuild = orientation === 'portrait' && playableAd;
   const [prompt, setPrompt] = useState('');
   const [menu, setMenu] = useState<Menu>('genre');
   const [submitting, setSubmitting] = useState(false);
@@ -129,7 +132,7 @@ export function GameStudio({ onExplore, onOpenMcp }: { onExplore: () => void; on
     if (!brief || submitting) return;
     setSubmitting(true);
     // Choosing options without typing is enough to start: the composed brief becomes the prompt.
-    try { started(await gameApi.create({ prompt: prompt.trim() || brief, genre, style, setting, multiplayer, orientation })); setPrompt(''); }
+    try { started(await gameApi.create({ prompt: prompt.trim() || brief, genre, style, setting, multiplayer, orientation, playableAd: adBuild })); setPrompt(''); }
     catch (error) { notify(failure(error), 'error'); }
     finally { setSubmitting(false); }
   };
@@ -194,10 +197,11 @@ export function GameStudio({ onExplore, onOpenMcp }: { onExplore: () => void; on
             <Button variant="plain" className="om-game-chip" aria-expanded={menu === 'setting'} data-active={Boolean(setting)} onClick={() => { setToggled(null); setMenu(menu === 'setting' ? 'genre' : 'setting'); }}>
               <RemixIcon name="landscape-line" size={15} />{setting ? t(settingLabels[setting]) : t('Setting')}</Button>
             <span className="om-game-ratio" role="radiogroup" aria-label={t('Aspect ratio')}>
-              {(['landscape', 'portrait'] as const).map(id => <Button key={id} variant="plain" role="radio" className="om-game-ratio-option" aria-checked={orientation === id} onClick={() => setOrientation(id)}>
+              {(['landscape', 'portrait'] as const).map(id => <Button key={id} variant="plain" role="radio" className="om-game-ratio-option" aria-checked={orientation === id} onClick={() => { if (id === 'portrait' && orientation !== 'portrait') { setPlayableAd(true); setMultiplayer(false); } setOrientation(id); }}>
                 <RemixIcon name={id === 'portrait' ? 'smartphone-line' : 'computer-line'} size={15} />{t(id === 'portrait' ? 'Portrait' : 'Landscape')}</Button>)}
             </span>
-            <label className="om-game-switch"><input type="checkbox" role="switch" checked={multiplayer} onChange={event => setMultiplayer(event.target.checked)} /><span aria-hidden="true" />{t('Multiplayer')}</label>
+            {orientation === 'portrait' && <label className="om-game-switch"><input type="checkbox" role="switch" checked={playableAd} onChange={event => { setPlayableAd(event.target.checked); if (event.target.checked) setMultiplayer(false); }} /><span aria-hidden="true" />{t('Playable ad')}</label>}
+            <label className="om-game-switch"><input type="checkbox" role="switch" checked={multiplayer && !adBuild} onChange={event => { setMultiplayer(event.target.checked); if (event.target.checked) setPlayableAd(false); }} /><span aria-hidden="true" />{t('Multiplayer')}</label>
             <IconButton variant="ghost" className="om-game-send" aria-label={t('Start building')} disabled={!brief || submitting} onClick={() => void submit()}
               icon={<RemixIcon name={submitting ? 'loader-4-line' : 'arrow-up-line'} size={18} />} />
           </div>
@@ -288,7 +292,10 @@ function GameTile({ game, locale, onOpen }: { game: GameCard; locale: string; on
   const label = pending(game) || game.status === 'failed' ? t('Show the Agent instruction for {title}', { title }) : t('Play {title}', { title });
   return <article className="om-game-tile" data-status={game.status} data-orientation={game.orientation === 'portrait' ? 'portrait' : undefined}>
     <Button variant="plain" className="om-game-tile-cover" onClick={onOpen} aria-label={label}>
+      {/* Portrait games share the 16:9 card: the cover sits whole in the middle over a blurred copy of itself. */}
+      {cover && game.orientation === 'portrait' && <img className="om-game-tile-backdrop" src={cover} alt="" loading="lazy" decoding="async" />}
       {cover ? <img src={cover} alt="" loading="lazy" decoding="async" /> : <span className="om-game-tile-placeholder">{title}</span>}
+      {game.orientation === 'portrait' && !game.multiplayer && <span className="om-game-badge"><RemixIcon name="smartphone-line" size={13} />{t('Portrait')}</span>}
       {status && <span className="om-game-status" data-tone={game.status}>{game.status === 'building' && <RemixIcon name="loader-4-line" size={13} />}{t(status)}</span>}
       {game.external && !game.external.embeddable && <span className="om-game-status"><RemixIcon name="external-link-line" size={13} />{t('External link')}</span>}
       {game.multiplayer && <span className="om-game-badge"><RemixIcon name="group-line" size={13} />{t('{count} players', { count: game.maxPlayers })}</span>}
@@ -468,7 +475,7 @@ function GameMasonry({ games, render }: { games: GameCard[]; render: (game: Game
     for (const game of games) {
       const shortest = heights.indexOf(Math.min(...heights));
       lists[shortest].push(game);
-      heights[shortest] += column * (game.orientation === 'portrait' ? 16 / 9 : 9 / 16) + tileMetaHeight + masonryGap;
+      heights[shortest] += column * 9 / 16 + tileMetaHeight + masonryGap;
     }
     return lists;
   }, [games, count, width]);

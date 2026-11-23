@@ -14,6 +14,7 @@ import { readWorkspacePage, settingsSections } from './workspacePageRouting';
 import { editorProjectIdFromPath } from '../../../shared/spa-routes';
 import { workspaceHistoryIndex, writeWorkspaceHistory } from '../utils/workspaceHistory';
 import { preloadAllWorkspacePages } from '../router/lazyPages';
+import { resetBannerDismissal } from './campaignAttribution';
 
 const editor = vi.hoisted(() => ({ mounts: 0, fail: false, wait: async () => {} }));
 vi.mock('./AssetsPage', () => ({ AssetsPage: ({ studio }: { studio?: StudioCreation }) => <input aria-label="Asset draft" defaultValue={studio?.initialDraft?.prompt ?? 'Asset prompt'} /> }));
@@ -1075,6 +1076,7 @@ it('resumes the project from the Explore spotlight without remounting its editor
   const draft = container.querySelector('[aria-label="Editor draft"]');
   expect(draft?.getAttribute('data-project')).toBe(second);
   await click('Explore');
+  await click('Featured · Motion Studio');
   expect(container.querySelector('.om-feature-slide:not([inert]) h2')?.textContent).toBe('Motion Studio');
   await click('Open in Motion Editor');
   expect(page()).toMatchObject({ explore: false, motion: false });
@@ -1095,6 +1097,7 @@ it.each([
       ? Promise.resolve(Response.json({ ...catalog, activeId }))
       : fallback(input, init));
   await mount();
+  await click('Featured · Motion Studio');
   await click('Open in Motion Editor');
   expect(page()).toMatchObject({ explore: false, motion: false, templates: false });
   expect(container.querySelector('[aria-label="Editor draft"]')?.getAttribute('data-project')).toBe(activeId);
@@ -2064,4 +2067,35 @@ it('shows the Explore shortcuts, fills two complete rows across Skills and techn
   expect(footer).not.toBeNull();
   expect(footer?.querySelector('h2')?.textContent).toBe('Open Design');
   expect(footer?.closest('.om-discovery-page')).toBeNull();
+});
+it('hides the Black Friday banner on Explore home, shows it on other tabs, and keeps dismissal for the day', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(Date.parse('2026-11-25T12:00:00+08:00'));
+  localStorage.clear();
+  resetBannerDismissal();
+  try {
+    history.replaceState(null, '', '/?page=explore');
+    await mount();
+    const banner = () => container.querySelector('aside[aria-label="Black Friday campaign banner"]');
+    expect(banner()).toBeNull();
+
+    await click('Motion Studio');
+    expect(banner()).not.toBeNull();
+
+    await click('Explore');
+    expect(banner()).toBeNull();
+
+    await click('Design Studio');
+    expect(banner()).not.toBeNull();
+
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Close campaign banner"]')!.click());
+    expect(banner()).toBeNull();
+
+    await click('Motion Studio');
+    expect(banner()).toBeNull();
+  } finally {
+    vi.useRealTimers();
+    localStorage.clear();
+    resetBannerDismissal();
+  }
 });
